@@ -2,3 +2,4 @@ streamlit
 langchain
 pypdf2
 google-generativeai
+langchain_google_genai
