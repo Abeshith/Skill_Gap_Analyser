@@ -19,7 +19,7 @@ job_roles = {
 # Load the Hugging Face model for skill extraction (using DistilBERT for faster performance)
 @st.cache_resource
 def load_model():
-    return pipeline("zero-shot-classification", model="facebook/distilbert-base-uncased")
+    return pipeline("zero-shot-classification", model="distilbert-base-uncased")
 
 model = load_model()
 
