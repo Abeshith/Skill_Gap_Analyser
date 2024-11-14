@@ -1,4 +1,4 @@
-flask
+streamlit
 transformers
-gunicorn
+pypdf2
 torch
