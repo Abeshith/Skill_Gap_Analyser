@@ -28,7 +28,7 @@ course_recommendations = {
     "Python": ["https://www.udemy.com/course/python-for-beginners/", "https://www.youtube.com/watch?v=_uQrJ0TkZlc"],
     "Machine Learning": ["https://www.udacity.com/course/intro-to-machine-learning--ud120", "https://www.youtube.com/watch?v=Gv9_4yMHFhI"],
     "Statistics": ["https://www.coursera.org/learn/statistical-inference", "https://www.youtube.com/watch?v=xxpc-HPKN28"],
-    # Add additional skills and corresponding courses
+    # Add additional skills and corresponding courses as needed
 }
 
 # Function to extract text from PDF
@@ -78,10 +78,16 @@ if uploaded_file and selected_role:
     st.write(", ".join(extracted_skills))
 
     st.subheader("Skill Gaps for the Job Role:")
-    st.write(", ".join(skill_gaps))
+    if skill_gaps:
+        st.write(", ".join(skill_gaps))
+    else:
+        st.write("No skill gaps identified! Your resume matches the required skills.")
 
     st.subheader("Course Recommendations for Skill Gaps:")
-    for skill, courses in course_suggestions.items():
-        st.write(f"**{skill}**:")
-        for course in courses:
-            st.write(f"- [Course]({course})")
+    if course_suggestions:
+        for skill, courses in course_suggestions.items():
+            st.write(f"**{skill}**:")
+            for course in courses:
+                st.write(f"- [Course]({course})")
+    else:
+        st.write("No course recommendations as there are no skill gaps.")
