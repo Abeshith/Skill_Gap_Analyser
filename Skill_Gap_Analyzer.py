@@ -4,7 +4,7 @@ import os
 import PyPDF2
 
 # Initialize LangChain with Gemini API
-google_api_key = os.getenv("GOOGLE_API_KEY")
+google_api_key = "AIzaSyCgfiHwU_50aHh7VpV0yhAvHHrWK0o7Vgo"
 llm = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=google_api_key)
 
 # Define job roles and required skills
