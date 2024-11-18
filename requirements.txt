@@ -1,8 +1,5 @@
 streamlit
-pypdf2
-sentence-transformers
-tensorflow
-torch
-tf-keras
-keybert
-nltk
+openai
+pdfplumber
+langchain
+faiss-cpu
