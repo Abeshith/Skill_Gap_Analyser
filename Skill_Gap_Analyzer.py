@@ -1,19 +1,15 @@
 import streamlit as st
 import PyPDF2
-import spacy
+import nltk
+from keybert import KeyBERT
 from sentence_transformers import SentenceTransformer, util
-import os
 import subprocess
 
-# Check if spaCy model is installed, and download if not
-try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-    with st.spinner("Downloading spaCy language model..."):
-        subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"], check=True)
-    nlp = spacy.load("en_core_web_sm")
+# Download NLTK resources
+nltk.download("punkt")
 
-# Load the sentence transformer model
+# Initialize KeyBERT and SentenceTransformer
+kw_model = KeyBERT()
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Predefined skills for job roles
@@ -23,7 +19,7 @@ job_skills = {
     "Product Manager": ["communication", "roadmap planning", "agile", "jira", "stakeholder management"],
 }
 
-# Function to extract skills from PDF
+# Function to extract skills using KeyBERT
 def extract_skills_from_pdf(pdf_file):
     skills = set()
     try:
@@ -31,13 +27,13 @@ def extract_skills_from_pdf(pdf_file):
         text = ""
         for page in pdf_reader.pages:
             text += page.extract_text()
-        doc = nlp(text)
-        for ent in doc.ents:
-            if ent.label_ in ["SKILL", "GPE", "WORK_OF_ART", "LANGUAGE"]:  # Adjust labels as necessary
-                skills.add(ent.text.lower())
+        
+        # Use KeyBERT to extract keywords
+        keywords = kw_model.extract_keywords(text, top_n=20)
+        skills = [kw[0] for kw in keywords]  # Extract just the skill names
     except Exception as e:
         st.error(f"Error processing PDF: {e}")
-    return list(skills)
+    return skills
 
 # Function to match skills
 def match_skills(user_skills, role_skills):
