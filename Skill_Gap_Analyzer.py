@@ -4,7 +4,7 @@ import openai
 from langchain.chains import RetrievalQA
 from langchain.document_loaders import PyPDFLoader
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 
 # Mocked skills for job roles (can be extended or fetched from a database)
 JOB_ROLES = {
@@ -14,7 +14,7 @@ JOB_ROLES = {
 }
 
 # OpenAI API setup (replace this with your actual API key)
-openai.api_key = "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"
+openai.api_key = ""
 
 # Set up the Streamlit app
 st.set_page_config(page_title="Resume Analyzer", layout="wide")
