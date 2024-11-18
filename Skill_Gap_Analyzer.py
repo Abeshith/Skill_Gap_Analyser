@@ -2,9 +2,18 @@ import streamlit as st
 import PyPDF2
 import spacy
 from sentence_transformers import SentenceTransformer, util
+import os
+import subprocess
 
-# Load NLP models
-nlp = spacy.load("en_core_web_sm")
+# Check if spaCy model is installed, and download if not
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    with st.spinner("Downloading spaCy language model..."):
+        subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"], check=True)
+    nlp = spacy.load("en_core_web_sm")
+
+# Load the sentence transformer model
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # Predefined skills for job roles
