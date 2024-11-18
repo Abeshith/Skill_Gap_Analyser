@@ -1,115 +1,90 @@
 import streamlit as st
-import PyPDF2
-from keybert import KeyBERT
-from sentence_transformers import SentenceTransformer, util
-import nltk
-import subprocess
+import pdfplumber
+from langchain.chains import RetrievalQA
+from langchain.document_loaders import PyPDFLoader
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+import openai
 
-# Download NLTK resources
-nltk.download("punkt")
-
-# Initialize KeyBERT and SentenceTransformer
-kw_model = KeyBERT()
-model = SentenceTransformer('all-MiniLM-L6-v2')
-
-# Predefined skills for job roles
-job_skills = {
-    "Data Scientist": ["python", "machine learning", "data analysis", "sql", "deep learning", "statistics"],
-    "Software Engineer": ["java", "c++", "algorithms", "data structures", "git", "software design"],
-    "Product Manager": ["communication", "roadmap planning", "agile", "jira", "stakeholder management", "marketing"],
+# Mocked skills for job roles (can be extended or fetched from a database)
+JOB_ROLES = {
+    "Data Scientist": ["Python", "Machine Learning", "Deep Learning", "SQL", "Statistics"],
+    "Web Developer": ["HTML", "CSS", "JavaScript", "React", "Node.js"],
+    "Cloud Engineer": ["AWS", "Azure", "Kubernetes", "Docker", "DevOps"]
 }
 
-# Function to extract skills from PDF using KeyBERT
-def extract_skills_from_pdf(pdf_file):
-    skills = set()
-    try:
-        # Read PDF content
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text()
+# OpenAI API setup (you need to replace it with your own API key)
+openai.api_key = "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"
 
-        # Extract keywords (skills) using KeyBERT
-        keywords = kw_model.extract_keywords(text, top_n=20, keyphrase_ngram_range=(1, 1))
-        skills = [kw[0].lower() for kw in keywords]  # Extract skill names and make them lowercase
-    except Exception as e:
-        st.error(f"Error processing PDF: {e}")
-    return skills
+# Set up the Streamlit app
+st.set_page_config(page_title="Resume Analyzer", layout="wide")
 
-# Function to match skills
-def match_skills(user_skills, role_skills):
-    matched = list(set(user_skills) & set(role_skills))
-    missing = list(set(role_skills) - set(user_skills))
-    return matched, missing
+# Custom UI for uploading and job role selection
+st.markdown("""
+    <style>
+    .title { font-size: 2rem; text-align: center; color: #4CAF50; margin-bottom: 2rem; }
+    .upload { margin: 1rem auto; }
+    </style>
+""", unsafe_allow_html=True)
 
-# Function to recommend skills
-def recommend_skills(missing_skills, all_skills):
-    recommendations = {}
-    for skill in missing_skills:
-        try:
-            similarities = util.cos_sim(model.encode(skill), model.encode(all_skills))
-            similar_skills = [all_skills[i] for i in similarities.argsort(descending=True)[:3]]
-            recommendations[skill] = similar_skills
-        except Exception:
-            recommendations[skill] = []
-    return recommendations
+st.markdown('<div class="title">📄 Resume Analyzer</div>', unsafe_allow_html=True)
 
-# Function to suggest courses for missing skills
-def recommend_courses(missing_skills):
-    courses = {
-        "python": "Python for Data Science on Coursera",
-        "machine learning": "Machine Learning by Andrew Ng on Coursera",
-        "sql": "SQL for Data Science on Coursera",
-        "deep learning": "Deep Learning Specialization on Coursera",
-        "java": "Java Programming on Udemy",
-        "c++": "C++ Programming on Udemy",
-        "agile": "Agile Project Management on Udemy",
-        "communication": "Communication Skills for Leaders on LinkedIn Learning",
-        "stakeholder management": "Stakeholder Management on LinkedIn Learning"
-    }
-    course_recommendations = {}
-    for skill in missing_skills:
-        if skill in courses:
-            course_recommendations[skill] = courses[skill]
-    return course_recommendations
+# Upload resume
+uploaded_file = st.file_uploader("Upload your resume (PDF only)", type=["pdf"], key="resume")
 
-# Streamlit App UI
-st.set_page_config(page_title="Resume Skill Matcher", layout="wide")
-st.title("Resume Skill Matcher")
+# Select job role
+job_role = st.selectbox("Select a Job Role:", options=["Choose"] + list(JOB_ROLES.keys()))
 
-# Resume Upload
-uploaded_file = st.file_uploader("Upload your Resume (PDF format)", type=["pdf"])
-if uploaded_file:
-    extracted_skills = extract_skills_from_pdf(uploaded_file)
-    st.write("### Extracted Skills from Resume:")
-    st.write(extracted_skills)
+# Analyze button
+if st.button("Analyze Resume"):
+    if not uploaded_file or job_role == "Choose":
+        st.error("Please upload a resume and select a job role!")
+    else:
+        # Step 1: Extract text from the resume using pdfplumber
+        with pdfplumber.open(uploaded_file) as pdf:
+            resume_text = " ".join(page.extract_text() for page in pdf.pages)
 
-    # Job Role Selection
-    selected_role = st.selectbox("Select Job Role:", list(job_skills.keys()))
-    if selected_role:
-        role_skills = job_skills[selected_role]
-        matched, missing = match_skills(extracted_skills, role_skills)
+        # Step 2: Analyze skills using RAG or simple text matching
+        required_skills = JOB_ROLES[job_role]
+        extracted_skills = [skill for skill in required_skills if skill.lower() in resume_text.lower()]
 
+        # Step 3: Display matched skills
         st.write("### Skills Matched:")
-        st.write(matched)
+        st.write(extracted_skills)
 
+        # Step 4: Display missing skills
+        missing_skills = list(set(required_skills) - set(extracted_skills))
         st.write("### Missing Skills:")
-        st.write(missing)
+        st.write(missing_skills)
 
-        # Recommend Skills
-        all_available_skills = sum(job_skills.values(), [])
-        recommendations = recommend_skills(missing, all_available_skills)
+        # Step 5: Recommend missing skills using OpenAI API
+        if missing_skills:
+            st.write("### Skill Recommendations:")
+            for skill in missing_skills:
+                prompt = f"Recommend skills related to {skill}."
+                response = openai.Completion.create(
+                    engine="text-davinci-003",
+                    prompt=prompt,
+                    max_tokens=50,
+                    temperature=0.6
+                )
+                recommendations = response.choices[0].text.strip()
+                st.write(f"**{skill}:** {recommendations}")
+        else:
+            st.write("No missing skills found. Great job!")
 
-        st.write("### Recommended Skills:")
-        for skill, recs in recommendations.items():
-            st.write(f"- **{skill}**: {', '.join(recs)}")
+        # Optional: Use Langchain's RAG (retrieval-augmented generation) to answer any job-specific queries
+        if st.button("Ask about Job Role"):
+            query = st.text_input("Ask anything about the job role:")
+            if query:
+                # Use Langchain to create a retrieval-based answer for job role related queries
+                documents = [resume_text]  # In a real app, you'd load documents into Langchain's FAISS
+                vectorstore = FAISS.from_documents(documents, OpenAIEmbeddings())
+                retriever = vectorstore.as_retriever()
+                qa_chain = RetrievalQA.from_chain_type(
+                    llm=openai.Completion.create,
+                    retriever=retriever
+                )
+                answer = qa_chain.run(query)
+                st.write(f"### Answer: {answer}")
 
-        # Recommend Courses for Missing Skills
-        course_recommendations = recommend_courses(missing)
-        st.write("### Recommended Courses for Missing Skills:")
-        for skill, course in course_recommendations.items():
-            st.write(f"- **{skill}**: {course}")
-
-# Footer
-st.markdown("---")
-st.markdown("Built with ❤️ using Streamlit")
