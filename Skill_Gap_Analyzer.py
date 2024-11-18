@@ -14,7 +14,7 @@ JOB_ROLES = {
 }
 
 # OpenAI API setup (replace this with your actual API key)
-openai.api_key = "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"
+openai.api_key = "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"
 
 # Set up the Streamlit app
 st.set_page_config(page_title="Resume Analyzer", layout="wide")
