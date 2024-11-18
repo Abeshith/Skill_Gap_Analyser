@@ -1,6 +1,7 @@
 streamlit
 pypdf2
-transformers
+sentence-transformers
 tensorflow
 torch
 tf-keras
+spacy
