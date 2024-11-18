@@ -1,87 +1,84 @@
 import streamlit as st
-from transformers import pipeline
 import PyPDF2
+import spacy
+from sentence_transformers import SentenceTransformer, util
 
-# Define job roles and required skills
-job_roles = {
-    "Data Scientist": ["Python", "Machine Learning", "Statistics", "Data Analysis", "Deep Learning"],
-    "Software Engineer": ["Java", "Data Structures", "Algorithms", "System Design", "Databases"],
-    "Web Developer": ["HTML", "CSS", "JavaScript", "React", "Web Design"],
-    "Project Manager": ["Project Management", "Agile", "Scrum", "Team Management", "Risk Management"],
-    "Cloud Engineer": ["AWS", "Azure", "Cloud Architecture", "DevOps", "Docker"],
-    "AI Engineer": ["Python", "Machine Learning", "Deep Learning", "NLP", "TensorFlow"],
-    "Product Manager": ["Product Development", "Market Research", "Data Analysis", "UX Design", "Roadmapping"],
-    "Cybersecurity Specialist": ["Network Security", "Cryptography", "Penetration Testing", "Firewalls", "Ethical Hacking"],
-    "Data Analyst": ["Excel", "SQL", "Python", "Data Visualization", "Statistics"],
-    "Business Analyst": ["Business Analysis", "Data Analysis", "SQL", "Communication", "Project Management"]
+# Load NLP models
+nlp = spacy.load("en_core_web_sm")
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Predefined skills for job roles
+job_skills = {
+    "Data Scientist": ["python", "machine learning", "data analysis", "sql", "deep learning"],
+    "Software Engineer": ["java", "c++", "algorithms", "data structures", "git"],
+    "Product Manager": ["communication", "roadmap planning", "agile", "jira", "stakeholder management"],
 }
 
-# Load the Hugging Face model for skill extraction (using DistilBERT for faster performance)
-@st.cache_resource
-def load_model():
-    return pipeline("zero-shot-classification", model="distilbert-base-uncased")
+# Function to extract skills from PDF
+def extract_skills_from_pdf(pdf_file):
+    skills = set()
+    try:
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+        doc = nlp(text)
+        for ent in doc.ents:
+            if ent.label_ in ["SKILL", "GPE", "WORK_OF_ART", "LANGUAGE"]:  # Adjust labels as necessary
+                skills.add(ent.text.lower())
+    except Exception as e:
+        st.error(f"Error processing PDF: {e}")
+    return list(skills)
 
-model = load_model()
+# Function to match skills
+def match_skills(user_skills, role_skills):
+    matched = list(set(user_skills) & set(role_skills))
+    missing = list(set(role_skills) - set(user_skills))
+    return matched, missing
 
-# Course recommendations for each skill gap
-course_recommendations = {
-    "Python": ["https://www.udemy.com/course/python-for-beginners/", "https://www.youtube.com/watch?v=_uQrJ0TkZlc"],
-    "Machine Learning": ["https://www.udacity.com/course/intro-to-machine-learning--ud120", "https://www.youtube.com/watch?v=Gv9_4yMHFhI"],
-    "Statistics": ["https://www.coursera.org/learn/statistical-inference", "https://www.youtube.com/watch?v=xxpc-HPKN28"],
-    # Add additional skills and corresponding courses
-}
-
-# Function to extract text from PDF
-def extract_text_from_pdf(pdf_file):
-    pdf_reader = PyPDF2.PdfReader(pdf_file)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
-    return text
-
-# Function to extract skills from resume using Hugging Face model
-def extract_resume_skills(resume_text, required_skills):
-    results = model(resume_text, candidate_labels=required_skills)
-    extracted_skills = [label for label, score in zip(results["labels"], results["scores"]) if score > 0.3]
-    return extracted_skills
-
-# Function to identify skill gaps
-def get_skill_gaps(extracted_skills, required_skills):
-    return [skill for skill in required_skills if skill not in extracted_skills]
-
-# Function to recommend courses based on skill gaps
-def recommend_courses(skill_gaps):
+# Function to recommend skills
+def recommend_skills(missing_skills, all_skills):
     recommendations = {}
-    for skill in skill_gaps:
-        if skill in course_recommendations:
-            recommendations[skill] = course_recommendations[skill]
+    for skill in missing_skills:
+        try:
+            similarities = util.cos_sim(model.encode(skill), model.encode(all_skills))
+            similar_skills = [all_skills[i] for i in similarities.argsort(descending=True)[:3]]
+            recommendations[skill] = similar_skills
+        except Exception:
+            recommendations[skill] = []
     return recommendations
 
-# Streamlit interface
-st.title("Resume Skill Gap Analyzer")
+# Streamlit App UI
+st.set_page_config(page_title="Resume Skill Matcher", layout="wide")
+st.title("Resume Skill Matcher")
 
-uploaded_file = st.file_uploader("Upload your resume (PDF or Text)", type=["pdf", "txt"])
-selected_role = st.selectbox("Select Job Role", list(job_roles.keys()))
+# Resume Upload
+uploaded_file = st.file_uploader("Upload your Resume (PDF format)", type=["pdf"])
+if uploaded_file:
+    extracted_skills = extract_skills_from_pdf(uploaded_file)
+    st.write("### Extracted Skills from Resume:")
+    st.write(extracted_skills)
 
-if uploaded_file and selected_role:
-    if uploaded_file.type == "application/pdf":
-        resume_text = extract_text_from_pdf(uploaded_file)
-    else:
-        resume_text = uploaded_file.read().decode("utf-8")
+    # Job Role Selection
+    selected_role = st.selectbox("Select Job Role:", list(job_skills.keys()))
+    if selected_role:
+        role_skills = job_skills[selected_role]
+        matched, missing = match_skills(extracted_skills, role_skills)
 
-    required_skills = job_roles[selected_role]
-    extracted_skills = extract_resume_skills(resume_text, required_skills)
-    skill_gaps = get_skill_gaps(extracted_skills, required_skills)
-    course_suggestions = recommend_courses(skill_gaps)
+        st.write("### Skills Matched:")
+        st.write(matched)
 
-    st.subheader("Skills Identified in Resume:")
-    st.write(", ".join(extracted_skills))
+        st.write("### Missing Skills:")
+        st.write(missing)
 
-    st.subheader("Skill Gaps for the Job Role:")
-    st.write(", ".join(skill_gaps))
+        # Recommend Skills
+        all_available_skills = sum(job_skills.values(), [])
+        recommendations = recommend_skills(missing, all_available_skills)
 
-    st.subheader("Course Recommendations for Skill Gaps:")
-    for skill, courses in course_suggestions.items():
-        st.write(f"**{skill}**:")
-        for course in courses:
-            st.write(f"- [Course]({course})")
+        st.write("### Recommended Skills:")
+        for skill, recs in recommendations.items():
+            st.write(f"- **{skill}**: {', '.join(recs)}")
+
+# Footer
+st.markdown("---")
+st.markdown("Built with ❤️ using Streamlit")
