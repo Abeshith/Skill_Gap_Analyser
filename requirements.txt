@@ -1,6 +1,3 @@
 streamlit
-openai==0.28
-pdfplumber
-langchain
-faiss-cpu
-langchain-community
+PyPDF2
+transformers
