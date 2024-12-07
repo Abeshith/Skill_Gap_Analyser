@@ -1,33 +1,18 @@
 import streamlit as st
+from transformers import pipeline
 import pdfplumber
-import openai
-from langchain.chains import RetrievalQA
-from langchain.document_loaders import PyPDFLoader
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain_community.vectorstores import FAISS
 
-# Mocked skills for job roles (can be extended or fetched from a database)
+# Predefined skills for job roles
 JOB_ROLES = {
-    "Data Scientist": ["Python", "Machine Learning", "Deep Learning", "SQL", "Statistics"],
+    "Data Scientist": ["Python", "R", "Machine Learning", "Deep Learning", "Natural Language Processing", "SQL", "Statistics"],
+    "Machine Learning Engineer": ["Python", "Machine Learning", "Deep Learning", "Natural Language Processing", "TensorFlow", "PyTorch"],
     "Web Developer": ["HTML", "CSS", "JavaScript", "React", "Node.js"],
-    "Cloud Engineer": ["AWS", "Azure", "Kubernetes", "Docker", "DevOps"]
+    "Cloud Engineer": ["AWS", "Azure", "Kubernetes", "Docker", "DevOps"],
 }
 
-# OpenAI API setup (replace this with your actual API key)
-openai.api_key = ""
-
-# Set up the Streamlit app
+# Streamlit app setup
 st.set_page_config(page_title="Resume Analyzer", layout="wide")
-
-# Custom UI for uploading and job role selection
-st.markdown("""
-    <style>
-    .title { font-size: 2rem; text-align: center; color: #4CAF50; margin-bottom: 2rem; }
-    .upload { margin: 1rem auto; }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown('<div class="title">📄 Resume Analyzer</div>', unsafe_allow_html=True)
+st.title(" Resume Analyzer")
 
 # Upload resume
 uploaded_file = st.file_uploader("Upload your resume (PDF only)", type=["pdf"], key="resume")
@@ -40,50 +25,28 @@ if st.button("Analyze Resume"):
     if not uploaded_file or job_role == "Choose":
         st.error("Please upload a resume and select a job role!")
     else:
-        # Step 1: Extract text from the resume using pdfplumber
+        # Step 1: Extract text from PDF using pdfplumber
         with pdfplumber.open(uploaded_file) as pdf:
-            resume_text = " ".join(page.extract_text() for page in pdf.pages)
+            resume_text = " ".join(page.extract_text() for page in pdf.pages if page.extract_text())
+        
+        # Step 2: Use transformers pipeline for content extraction
+        skill_extractor = pipeline("feature-extraction")  # Use for extracting features from text
+        extracted_features = skill_extractor(resume_text)
 
-        # Step 2: Analyze skills using simple text matching
+        # Step 3: Match skills based on keywords
         required_skills = JOB_ROLES[job_role]
-        extracted_skills = [skill for skill in required_skills if skill.lower() in resume_text.lower()]
+        matched_skills = [skill for skill in required_skills if skill.lower() in resume_text.lower()]
+        missing_skills = list(set(required_skills) - set(matched_skills))
 
-        # Step 3: Display matched skills
+        # Display results
         st.write("### Skills Matched:")
-        st.write(extracted_skills)
+        st.write(matched_skills if matched_skills else "No skills matched.")
 
-        # Step 4: Display missing skills
-        missing_skills = list(set(required_skills) - set(extracted_skills))
         st.write("### Missing Skills:")
-        st.write(missing_skills)
+        st.write(missing_skills if missing_skills else "No missing skills. Great job!")
 
-        # Step 5: Recommend missing skills using OpenAI API (gpt-3.5-turbo)
+        # Optional: Suggest missing skills
         if missing_skills:
-            st.write("### Skill Recommendations:")
+            st.write("### Recommended Skills for Improvement:")
             for skill in missing_skills:
-                prompt = f"Recommend skills related to {skill}."
-                response = openai.Completion.create(
-                    model="gpt-3.5-turbo",  # Using GPT-3.5-turbo instead of text-davinci-003
-                    prompt=prompt,
-                    max_tokens=50,
-                    temperature=0.6
-                )
-                recommendations = response.choices[0].text.strip()
-                st.write(f"**{skill}:** {recommendations}")
-        else:
-            st.write("No missing skills found. Great job!")
-
-        # Optional: Use Langchain's RAG (retrieval-augmented generation) to answer any job-specific queries
-        if st.button("Ask about Job Role"):
-            query = st.text_input("Ask anything about the job role:")
-            if query:
-                # Use Langchain to create a retrieval-based answer for job role related queries
-                documents = [resume_text]  # In a real app, you'd load documents into Langchain's FAISS
-                vectorstore = FAISS.from_documents(documents, OpenAIEmbeddings())
-                retriever = vectorstore.as_retriever()
-                qa_chain = RetrievalQA.from_chain_type(
-                    llm=openai.Completion.create,
-                    retriever=retriever
-                )
-                answer = qa_chain.run(query)
-                st.write(f"### Answer: {answer}")
+                st.write(f"- {skill}: Improve your knowledge and practical applications in {skill}.")
