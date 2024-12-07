@@ -3,3 +3,4 @@ PyPDF2
 transformers
 tensorflow
 torch
+pdfplumber
