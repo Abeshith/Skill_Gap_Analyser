@@ -2,13 +2,14 @@ import streamlit as st
 import pdfplumber
 from transformers import pipeline
 from fuzzywuzzy import fuzz
-from langchain.llms import OpenAI
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+import openai
+import requests
+from PIL import Image
+from io import BytesIO
 
 # Define job roles and corresponding skill keywords
 JOB_ROLES = {
-   "Data Scientist": ["Python", "Machine Learning", "Deep Learning", "SQL", "Statistics", "TensorFlow", "Scikit-learn", "Pandas", "NumPy"],
+    "Data Scientist": ["Python", "Machine Learning", "Deep Learning", "SQL", "Statistics", "TensorFlow", "Scikit-learn", "Pandas", "NumPy"],
     "Web Developer": ["HTML", "CSS", "JavaScript", "React", "Node.js", "Bootstrap", "Tailwind CSS", "Angular"],
     "Cloud Engineer": ["AWS", "Azure", "Kubernetes", "Docker", "DevOps", "Terraform", "Ansible", "Google Cloud Platform"],
     "AI Engineer": ["Python", "Deep Learning", "NLP", "TensorFlow", "PyTorch", "Transformers", "OpenCV", "Reinforcement Learning"],
@@ -26,7 +27,7 @@ JOB_ROLES = {
 }
 
 # Set up Streamlit
-st.set_page_config(page_title="Resume Analyzer", layout="wide")
+st.set_page_config(page_title="Resume Analyzer")
 st.title("📄 Resume Analyzer")
 
 # Upload Resume
@@ -35,19 +36,23 @@ uploaded_file = st.file_uploader("Upload your resume (PDF only)", type=["pdf"])
 # Select Job Role
 job_role = st.selectbox("Select a Job Role:", options=["Choose"] + list(JOB_ROLES.keys()))
 
-# Gemini API Configuration
-GEMINI_API_KEY = "AIzaSyDqwe1AHD2ftF-0D2S2O3-fsWuL8wVMe54"  # Your provided API key
+# OpenAI API Key
+openai.api_key = "your_openai_api_key"
 
-# Function to fetch courses using LangChain and Gemini API
-def fetch_courses_with_langchain(skill):
-    llm = OpenAI(temperature=0.5, api_key=GEMINI_API_KEY)
-    prompt = PromptTemplate(
-        input_variables=["skill"],
-        template="Find 5 best courses for {skill} and include thumbnail URL, title, description, and course link."
-    )
-    chain = LLMChain(llm=llm, prompt=prompt)
-    response = chain.run(skill)
-    return response
+# Function to recommend courses
+def recommend_courses(skill):
+    prompt = f"Recommend 5 online courses for learning {skill}. Provide the course name, platform, and a link to the course."
+
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",  # You can replace this with gpt-4 if you have access
+            prompt=prompt,
+            max_tokens=150
+        )
+        course_recommendations = response.choices[0].text.strip().split("\n")
+        return course_recommendations
+    except Exception as e:
+        return [f"Error: {str(e)}"]
 
 # Analyze Button
 if st.button("Analyze Resume"):
@@ -78,13 +83,21 @@ if st.button("Analyze Resume"):
         st.subheader("Missing Skills")
         st.write(missing_skills if missing_skills else "No missing skills!")
 
-        # Step 4: Recommend courses for missing skills
+        # Step 4: Recommend related skills for missing ones
         if missing_skills:
             st.subheader("Skill Recommendations")
             for skill in missing_skills:
-                st.write(f"**Courses for {skill}:**")
-                course_data = fetch_courses_with_langchain(skill)
-                if course_data:
-                    st.markdown(course_data, unsafe_allow_html=True)
-                else:
-                    st.write("No courses found for this skill.")
+                st.write(f"### Courses for **{skill.capitalize()}**")
+                courses = recommend_courses(skill)
+                
+                # Display courses as YouTube-like thumbnails
+                cols = st.columns(3)
+                for i, course in enumerate(courses):
+                    if i < 5:
+                        with cols[i % 3]:  # 3 columns for YouTube-style thumbnails
+                            course_info = course.split(" - ")
+                            if len(course_info) == 3:
+                                course_name, platform, link = course_info
+                                # Display the thumbnail with title and link
+                                st.image("https://via.placeholder.com/150", caption=course_name, use_column_width=True)  # Placeholder image
+                                st.markdown(f"[{course_name}]({link}) - {platform}")
