@@ -2,6 +2,9 @@ import streamlit as st
 import pdfplumber
 from transformers import pipeline
 from fuzzywuzzy import fuzz
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
 
 # Define job roles and corresponding skill keywords
 JOB_ROLES = {
@@ -17,7 +20,7 @@ JOB_ROLES = {
     "Blockchain Developer": ["Solidity", "Ethereum", "Smart Contracts", "Hyperledger", "Consensus Algorithms", "Cryptography", "Web3"],
     "UI/UX Designer": ["Figma", "Sketch", "Adobe XD", "User Research", "Wireframing", "Prototyping", "Interaction Design"],
     "Game Developer": ["Unity", "Unreal Engine", "C#", "C++", "Game Physics", "Blender", "3D Modeling"],
-    "Machine Learning Engineer": ["Python", "R", "TensorFlow", "PyTorch", "Deep Learning", "Natural Language Processing", "Keras","NLP"],
+    "Machine Learning Engineer": ["Python", "R", "TensorFlow", "PyTorch", "Deep Learning", "Natural Language Processing", "Keras", "NLP"],
     "Product Manager": ["Agile Methodologies", "Scrum", "Product Lifecycle", "Market Research", "Stakeholder Management", "JIRA", "Roadmaps"],
     "Network Engineer": ["Cisco Networking", "Routing & Switching", "Firewall Configuration", "LAN/WAN", "TCP/IP", "VPN", "Network Security"],
 }
@@ -31,6 +34,20 @@ uploaded_file = st.file_uploader("Upload your resume (PDF only)", type=["pdf"])
 
 # Select Job Role
 job_role = st.selectbox("Select a Job Role:", options=["Choose"] + list(JOB_ROLES.keys()))
+
+# Gemini API Configuration
+GEMINI_API_KEY = "AIzaSyDqwe1AHD2ftF-0D2S2O3-fsWuL8wVMe54"  # Your provided API key
+
+# Function to fetch courses using LangChain and Gemini API
+def fetch_courses_with_langchain(skill):
+    llm = OpenAI(temperature=0.5, api_key=GEMINI_API_KEY)
+    prompt = PromptTemplate(
+        input_variables=["skill"],
+        template="Find 5 best courses for {skill} and include thumbnail URL, title, description, and course link."
+    )
+    chain = LLMChain(llm=llm, prompt=prompt)
+    response = chain.run(skill)
+    return response
 
 # Analyze Button
 if st.button("Analyze Resume"):
@@ -61,9 +78,13 @@ if st.button("Analyze Resume"):
         st.subheader("Missing Skills")
         st.write(missing_skills if missing_skills else "No missing skills!")
 
-        # Step 4: Recommend related skills for missing ones
+        # Step 4: Recommend courses for missing skills
         if missing_skills:
             st.subheader("Skill Recommendations")
             for skill in missing_skills:
-                st.write(f"- Related skills for **{skill}**: {skill}-specific tools or frameworks")
-
+                st.write(f"**Courses for {skill}:**")
+                course_data = fetch_courses_with_langchain(skill)
+                if course_data:
+                    st.markdown(course_data, unsafe_allow_html=True)
+                else:
+                    st.write("No courses found for this skill.")
