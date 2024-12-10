@@ -1,8 +1,7 @@
 import streamlit as st
 import pdfplumber
 from fuzzywuzzy import fuzz
-import openai
-from PIL import Image
+import requests
 
 # Define job roles and corresponding skill keywords
 JOB_ROLES = {
@@ -33,38 +32,26 @@ uploaded_file = st.file_uploader("Upload your resume (PDF only)", type=["pdf"])
 # Select Job Role
 job_role = st.selectbox("Select a Job Role:", options=["Choose"] + list(JOB_ROLES.keys()))
 
-# OpenAI API Key
-openai.api_key = "your_openai_api_key"
-
-# Function to recommend courses for missing skills
-def recommend_courses(skill):
-    prompt = f"Recommend 5 online courses for learning {skill}. Provide the course name, platform, and a link to the course."
-
+# Function to get course recommendations from Llama API
+def get_course_recommendations(skill):
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Using gpt-3.5-turbo for this case
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=300
+        response = requests.post(
+            "https://api.llama-api.com/v1/completions",
+            headers={"Authorization": "Bearer LA-1b496db6f37f456dbf37187c3b05df0e8920b9aacec24c6b800d9929ebcfac91"},
+            json={
+                "model": "llama-3-70b-instruct",
+                "prompt": f"Recommend online courses to learn {skill}.",
+                "max_tokens": 100,
+            },
         )
-        course_recommendations = response['choices'][0]['message']['content'].strip().split("\n")
-        
-        # Ensure each course has a name, platform, and link
-        valid_courses = []
-        for course in course_recommendations:
-            parts = course.split(" - ")
-            if len(parts) == 3:  # Course format: name - platform - link
-                course_name, platform, link = parts
-                if link.startswith("http"):
-                    valid_courses.append((course_name, platform, link))
-                else:
-                    valid_courses.append((course_name, platform, "Link not available"))
+        if response.status_code == 200:
+            courses = response.json().get("choices", [])
+            if courses:
+                return [course['text'].strip() for course in courses]
             else:
-                # Handle case where the format is not as expected
-                valid_courses.append((course, "Platform not available", "Link not available"))
-        return valid_courses
+                return ["No course recommendations found."]
+        else:
+            return [f"Error fetching course recommendations: {response.status_code}"]
     except Exception as e:
         return [f"Error: {str(e)}"]
 
@@ -97,19 +84,12 @@ if st.button("Analyze Resume"):
         st.subheader("Missing Skills")
         st.write(missing_skills if missing_skills else "No missing skills!")
 
-        # Step 4: Recommend related skills for missing ones
+        # Step 4: Recommend related courses for missing skills
         if missing_skills:
-            st.subheader("Missing Skill Recommendations")
+            st.subheader("Course Recommendations")
             for skill in missing_skills:
-                st.write(f"### Courses for **{skill.capitalize()}**")
-                courses = recommend_courses(skill)
-                
-                # Display courses as YouTube-like thumbnails
-                cols = st.columns(3)
-                for i, (course_name, platform, link) in enumerate(courses):
-                    if i < 5:
-                        with cols[i % 3]:  # 3 columns for YouTube-style thumbnails
-                            # Display placeholder thumbnail and course information
-                            st.image("https://via.placeholder.com/150", caption=course_name, use_column_width=True)  # Placeholder image
-                            st.markdown(f"[{course_name}]({link}) - {platform}")
-
+                st.write(f"**{skill.capitalize()}**")
+                # Fetch course recommendations from Llama API
+                courses = get_course_recommendations(skill)
+                for course in courses:
+                    st.write(f"- {course}")
