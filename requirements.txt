@@ -6,3 +6,4 @@ python-Levenshtein
 openai
 torch
 scikit-learn
+langchain
