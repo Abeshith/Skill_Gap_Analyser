@@ -3,7 +3,6 @@ import pdfplumber
 from fuzzywuzzy import fuzz
 import openai
 from PIL import Image
-import requests
 
 # Define job roles and corresponding skill keywords
 JOB_ROLES = {
@@ -48,10 +47,21 @@ def recommend_courses(skill):
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=200
+            max_tokens=300
         )
         course_recommendations = response['choices'][0]['message']['content'].strip().split("\n")
-        return course_recommendations
+        
+        # Ensure each course has a name, platform, and link
+        valid_courses = []
+        for course in course_recommendations:
+            parts = course.split(" - ")
+            if len(parts) == 3:  # Course format: name - platform - link
+                course_name, platform, link = parts
+                if link.startswith("http"):
+                    valid_courses.append((course_name, platform, link))
+                else:
+                    valid_courses.append((course_name, platform, "Link not available"))
+        return valid_courses
     except Exception as e:
         return [f"Error: {str(e)}"]
 
@@ -93,12 +103,10 @@ if st.button("Analyze Resume"):
                 
                 # Display courses as YouTube-like thumbnails
                 cols = st.columns(3)
-                for i, course in enumerate(courses):
+                for i, (course_name, platform, link) in enumerate(courses):
                     if i < 5:
                         with cols[i % 3]:  # 3 columns for YouTube-style thumbnails
-                            course_info = course.split(" - ")
-                            if len(course_info) == 3:
-                                course_name, platform, link = course_info
-                                # Display the thumbnail with title and link
-                                st.image("https://via.placeholder.com/150", caption=course_name, use_column_width=True)  # Placeholder image
-                                st.markdown(f"[{course_name}]({link}) - {platform}")
+                            # Display placeholder thumbnail and course information
+                            st.image("https://via.placeholder.com/150", caption=course_name, use_column_width=True)  # Placeholder image
+                            st.markdown(f"[{course_name}]({link}) - {platform}")
+
