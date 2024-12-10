@@ -7,3 +7,4 @@ openai
 torch
 scikit-learn
 langchain
+langchain_community
