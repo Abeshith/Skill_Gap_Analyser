@@ -1,6 +1,8 @@
 streamlit
-PyPDF2
-transformers
-tensorflow
-torch
 pdfplumber
+transformers
+fuzzywuzzy
+python-Levenshtein
+openai
+torch
+scikit-learn
