@@ -1,76 +1,57 @@
 import streamlit as st
-from transformers import LayoutLMForTokenClassification, LayoutLMTokenizer, pipeline
-from PyPDF2 import PdfReader
-import re
+import pdfplumber
+from transformers import pipeline
+from fuzzywuzzy import fuzz
 
-# Predefined skills for job roles
+# Define job roles and corresponding skill keywords
 JOB_ROLES = {
-    "Data Scientist": ["Python", "R", "Machine Learning", "Deep Learning", "Natural Language Processing", "SQL", "Statistics"],
-    "Machine Learning Engineer": ["Python", "Machine Learning", "Deep Learning", "NLP", "TensorFlow", "PyTorch", "Scikit-learn"],
-    "Web Developer": ["HTML", "CSS", "JavaScript", "React", "Node.js", "Bootstrap", "Git"],
-    "Cloud Engineer": ["AWS", "Azure", "Kubernetes", "Docker", "Terraform", "DevOps"],
+    "Data Scientist": ["python", "machine learning", "deep learning", "sql", "statistics", "tensorflow", "scikit-learn"],
+    "Web Developer": ["html", "css", "javascript", "react", "node.js"],
+    "Cloud Engineer": ["aws", "azure", "kubernetes", "docker", "devops"],
 }
 
-# Streamlit app setup
+# Set up Streamlit
 st.set_page_config(page_title="Resume Analyzer", layout="wide")
 st.title("📄 Resume Analyzer")
 
-# Upload resume
-uploaded_file = st.file_uploader("Upload your resume (PDF only)", type=["pdf"], key="resume")
+# Upload Resume
+uploaded_file = st.file_uploader("Upload your resume (PDF only)", type=["pdf"])
 
-# Select job role
+# Select Job Role
 job_role = st.selectbox("Select a Job Role:", options=["Choose"] + list(JOB_ROLES.keys()))
 
-# Helper function to clean and preprocess text
-def preprocess_text(text):
-    text = text.lower()
-    text = re.sub(r'[^\w\s]', ' ', text)  # Remove special characters
-    return text
-
-# Helper function to extract text using PyPDF2
-def extract_text_from_pdf(file):
-    reader = PdfReader(file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text()
-    return text
-
-# Analyze button
+# Analyze Button
 if st.button("Analyze Resume"):
     if not uploaded_file or job_role == "Choose":
         st.error("Please upload a resume and select a job role!")
     else:
-        try:
-            # Step 1: Extract text from the uploaded PDF
-            resume_text = extract_text_from_pdf(uploaded_file)
-            resume_text = preprocess_text(resume_text)
+        # Step 1: Extract text from PDF
+        with pdfplumber.open(uploaded_file) as pdf:
+            resume_text = " ".join(page.extract_text() for page in pdf.pages if page.extract_text())
+        
+        # Normalize text for comparison
+        resume_text = resume_text.lower()
 
-            # Step 2: Load the LayoutLM model and tokenizer for semantic understanding
-            tokenizer = LayoutLMTokenizer.from_pretrained("microsoft/layoutlm-base-uncased")
-            model = LayoutLMForTokenClassification.from_pretrained("microsoft/layoutlm-base-uncased")
+        # Step 2: Check skills in the resume
+        required_skills = [skill.lower() for skill in JOB_ROLES[job_role]]
+        matched_skills = [
+            skill for skill in required_skills
+            if any(fuzz.partial_ratio(skill, word) > 85 for word in resume_text.split())
+        ]
+        
+        # Step 3: Identify missing skills
+        missing_skills = list(set(required_skills) - set(matched_skills))
 
-            # Tokenize and analyze text
-            inputs = tokenizer(resume_text, return_tensors="pt", truncation=True, padding=True)
-            outputs = model(**inputs)
+        # Display results
+        st.subheader("Skills Matched")
+        st.write(matched_skills if matched_skills else "No matching skills found.")
+        
+        st.subheader("Missing Skills")
+        st.write(missing_skills if missing_skills else "No missing skills!")
 
-            # Step 3: Extract relevant skills for the selected job role
-            required_skills = JOB_ROLES[job_role]
+        # Step 4: Recommend related skills for missing ones
+        if missing_skills:
+            st.subheader("Skill Recommendations")
+            for skill in missing_skills:
+                st.write(f"- Related skills for **{skill}**: {skill}-specific tools or frameworks")
 
-            # Step 4: Match skills based on semantic similarity (simple matching here)
-            matched_skills = [skill for skill in required_skills if skill.lower() in resume_text]
-            missing_skills = list(set(required_skills) - set(matched_skills))
-
-            # Step 5: Display results
-            st.write("### Skills Matched:")
-            st.write(matched_skills if matched_skills else "No skills matched.")
-
-            st.write("### Missing Skills:")
-            st.write(missing_skills if missing_skills else "No missing skills. Great job!")
-
-            # Step 6: Recommend improvements for missing skills
-            if missing_skills:
-                st.write("### Recommended Skills for Improvement:")
-                for skill in missing_skills:
-                    st.write(f"- {skill}: Strengthen your knowledge and practical applications in {skill}.")
-        except Exception as e:
-            st.error(f"An error occurred while processing the resume: {str(e)}")
