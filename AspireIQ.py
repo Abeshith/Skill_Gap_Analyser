@@ -1,11 +1,9 @@
 import streamlit as st
 import pdfplumber
-from transformers import pipeline
 from fuzzywuzzy import fuzz
 import openai
-import requests
 from PIL import Image
-from io import BytesIO
+import requests
 
 # Define job roles and corresponding skill keywords
 JOB_ROLES = {
@@ -27,7 +25,7 @@ JOB_ROLES = {
 }
 
 # Set up Streamlit
-st.set_page_config(page_title="Resume Analyzer")
+st.set_page_config(page_title="Resume Analyzer", layout="wide")
 st.title("📄 Resume Analyzer")
 
 # Upload Resume
@@ -39,17 +37,20 @@ job_role = st.selectbox("Select a Job Role:", options=["Choose"] + list(JOB_ROLE
 # OpenAI API Key
 openai.api_key = "your_openai_api_key"
 
-# Function to recommend courses
+# Function to recommend courses for missing skills
 def recommend_courses(skill):
     prompt = f"Recommend 5 online courses for learning {skill}. Provide the course name, platform, and a link to the course."
 
     try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",  # You can replace this with gpt-4 if you have access
-            prompt=prompt,
-            max_tokens=150
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # Using gpt-3.5-turbo for this case
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=200
         )
-        course_recommendations = response.choices[0].text.strip().split("\n")
+        course_recommendations = response['choices'][0]['message']['content'].strip().split("\n")
         return course_recommendations
     except Exception as e:
         return [f"Error: {str(e)}"]
@@ -85,7 +86,7 @@ if st.button("Analyze Resume"):
 
         # Step 4: Recommend related skills for missing ones
         if missing_skills:
-            st.subheader("Skill Recommendations")
+            st.subheader("Missing Skill Recommendations")
             for skill in missing_skills:
                 st.write(f"### Courses for **{skill.capitalize()}**")
                 courses = recommend_courses(skill)
