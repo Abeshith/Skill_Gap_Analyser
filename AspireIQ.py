@@ -61,6 +61,9 @@ def recommend_courses(skill):
                     valid_courses.append((course_name, platform, link))
                 else:
                     valid_courses.append((course_name, platform, "Link not available"))
+            else:
+                # Handle case where the format is not as expected
+                valid_courses.append((course, "Platform not available", "Link not available"))
         return valid_courses
     except Exception as e:
         return [f"Error: {str(e)}"]
